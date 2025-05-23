@@ -39,6 +39,7 @@
           "locationAlwaysAndWhenInUsePermission": "Allow Location Tracker to use your location."
         }
       ]
-    ]
+    ],
+    "sdkVersion": "49.0.0"
   }
 }
