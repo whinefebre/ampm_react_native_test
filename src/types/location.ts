@@ -1,6 +1,8 @@
 import { Region } from 'react-native-maps';
 
-export interface LocationData extends Region {
+export interface LocationData {
+  latitude: number;
+  longitude: number;
   address?: string;
 }
 

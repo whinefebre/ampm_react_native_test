@@ -1,261 +1,150 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { StyleSheet, View, Text, Alert, TouchableOpacity, Platform, Linking, TextInput, ActivityIndicator, FlatList, AccessibilityInfo, Appearance } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Platform,
+  ActivityIndicator,
+  Alert,
+  Keyboard,
+  useColorScheme,
+  Dimensions,
+} from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
-import { useColorScheme } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LocationData, GeocodeResult, ReverseGeocodeResult, INITIAL_REGION } from '../types/location';
+import { LocationObject, LocationAccuracy } from 'expo-location';
+import { LocationData } from '../types/location';
+
+const { width, height } = Dimensions.get('window');
 
 export default function LocationTracker() {
-  const [location, setLocation] = useState<LocationData | null>(INITIAL_REGION);
+  const [location, setLocation] = useState<LocationData | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<LocationData[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<GeocodeResult[]>([]);
-  const [showResults, setShowResults] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const mapRef = useRef<MapView>(null);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
   useEffect(() => {
-    const subscription = Appearance.addChangeListener(({ colorScheme }) => {
-      setIsLoading(prev => !prev);
-    });
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          setErrorMsg('Permission to access location was denied');
+          return;
+        }
 
-    return () => subscription.remove();
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: LocationAccuracy.High,
+        });
+
+        const [address] = await Location.reverseGeocodeAsync({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        });
+
+        setLocation({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          address: address ? `${address.street}, ${address.city}` : null,
+        });
+      } catch (error) {
+        setErrorMsg('Error getting location');
+      }
+    })();
   }, []);
 
-  const announceForAccessibility = (message: string) => {
-    AccessibilityInfo.announceForAccessibility(message);
-  };
-
-  const getAddressFromCoordinates = async (latitude: number, longitude: number) => {
-    try {
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Geocoding request timed out')), 5000);
-      });
-
-      const geocodePromise = Location.reverseGeocodeAsync({
-        latitude,
-        longitude
-      });
-
-      const response = await Promise.race([geocodePromise, timeoutPromise]) as ReverseGeocodeResult[];
-      
-      if (response && response[0]) {
-        const address = response[0];
-        const formattedAddress = [
-          address.street,
-          address.city,
-          address.region,
-          address.country
-        ].filter(Boolean).join(', ');
-        
-        announceForAccessibility(`Location found: ${formattedAddress}`);
-        return formattedAddress;
-      }
-      return null;
-    } catch (error) {
-      console.error('Error getting address:', error);
-      if (error instanceof Error && error.message === 'Geocoding request timed out') {
-        setErrorMsg('Address lookup timed out. Please try again.');
-        announceForAccessibility('Address lookup timed out. Please try again.');
-      }
-      return null;
-    }
-  };
-
-  const searchLocation = async () => {
-    if (!searchQuery.trim()) return;
-
-    setIsSearching(true);
-    setErrorMsg(null);
-    announceForAccessibility('Searching for location...');
-
-    try {
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Search request timed out')), 5000);
-      });
-
-      const searchPromise = Location.geocodeAsync(searchQuery);
-      const results = await Promise.race([searchPromise, timeoutPromise]) as GeocodeResult[];
-
-      if (results && results.length > 0) {
-        const limitedResults = results.slice(0, 5);
-        setSearchResults(limitedResults);
-        setShowResults(true);
-        announceForAccessibility(`Found ${limitedResults.length} locations`);
-      } else {
-        setErrorMsg('Location not found');
-        announceForAccessibility('Location not found');
-        setSearchResults([]);
-        setShowResults(false);
-      }
-    } catch (error) {
-      console.error('Search error:', error);
-      let errorMessage = 'An unexpected error occurred. Please try again.';
-      
-      if (error instanceof Error) {
-        if (error.message === 'Search request timed out') {
-          errorMessage = 'Search request timed out. Please try again.';
-        } else {
-          errorMessage = 'Error searching for location. Please check your internet connection and try again.';
-        }
-      }
-      
-      setErrorMsg(errorMessage);
-      announceForAccessibility(errorMessage);
-      setSearchResults([]);
-      setShowResults(false);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const handleLocationSelect = (result: GeocodeResult) => {
-    const address = [
-      result.name,
-      result.street,
-      result.city,
-      result.region,
-      result.country
-    ].filter(Boolean).join(', ');
-
-    const newLocation = {
-      latitude: result.latitude,
-      longitude: result.longitude,
-      latitudeDelta: 0.0922,
-      longitudeDelta: 0.0421,
-      address: address || searchQuery
-    };
-    setLocation(newLocation);
-    mapRef.current?.animateToRegion(newLocation, 1000);
-    setShowResults(false);
-    setSearchQuery(address || searchQuery);
-    announceForAccessibility(`Selected location: ${address || searchQuery}`);
-  };
-
-  const renderSearchResult = ({ item }: { item: GeocodeResult }) => {
-    const address = [
-      item.name,
-      item.street,
-      item.city,
-      item.region,
-      item.country
-    ].filter(Boolean).join(', ');
-
-    return (
-      <TouchableOpacity
-        style={[styles.searchResultItem, isDark && styles.darkSearchResultItem]}
-        onPress={() => handleLocationSelect(item)}
-        accessibilityLabel={`Location: ${address || 'Unknown location'}`}
-        accessibilityHint="Double tap to select this location"
-      >
-        <Ionicons name="location" size={20} color={isDark ? '#fff' : '#000'} style={styles.searchResultIcon} />
-        <Text style={[styles.searchResultText, isDark && styles.darkSearchResultText]} numberOfLines={2}>
-          {address || 'Unknown location'}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
-
-  const requestLocationPermission = async () => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setErrorMsg('Permission to access location was denied');
-        announceForAccessibility('Permission to access location was denied');
-        Alert.alert(
-          'Permission Denied',
-          'Location permission is required to use this app.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Open Settings',
-              onPress: () => Linking.openSettings()
-            }
-          ]
-        );
-        return false;
-      }
-      return true;
-    } catch (error) {
-      console.error('Permission error:', error);
-      setErrorMsg('Error requesting location permission');
-      announceForAccessibility('Error requesting location permission');
-      return false;
-    }
-  };
-
-  const getCurrentLocation = async () => {
+  const handleMyLocationPress = async () => {
     try {
       setIsLoading(true);
       setErrorMsg(null);
-      announceForAccessibility('Getting current location...');
 
-      const hasPermission = await requestLocationPermission();
-      if (!hasPermission) return;
-
-      const enabled = await Location.hasServicesEnabledAsync();
-      if (!enabled) {
-        setErrorMsg('Location services are disabled');
-        announceForAccessibility('Location services are disabled');
-        Alert.alert(
-          'Location Services Disabled',
-          'Please enable location services in your device settings.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Open Settings',
-              onPress: () => Linking.openSettings()
-            }
-          ]
-        );
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setErrorMsg('Permission to access location was denied');
         return;
       }
 
       const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-        timeInterval: 5000,
+        accuracy: LocationAccuracy.High,
       });
 
-      if (location && location.coords) {
-        const address = await getAddressFromCoordinates(
-          location.coords.latitude,
-          location.coords.longitude
-        );
+      const [address] = await Location.reverseGeocodeAsync({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
 
-        const newLocation: LocationData = {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
-          address: address || undefined
-        };
-        setLocation(newLocation);
-        mapRef.current?.animateToRegion(newLocation, 1000);
-        announceForAccessibility(`Current location found: ${address || 'Coordinates only'}`);
-      } else {
-        setErrorMsg('Invalid location data received');
-        announceForAccessibility('Invalid location data received');
-      }
+      const newLocation = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        address: address ? `${address.street}, ${address.city}` : null,
+      };
+
+      setLocation(newLocation);
+      mapRef.current?.animateToRegion({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
     } catch (error) {
-      console.error('Location error:', error);
-      const errorMessage = `Error getting location: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      setErrorMsg(errorMessage);
-      announceForAccessibility(errorMessage);
+      setErrorMsg('Error getting location');
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    getCurrentLocation();
-  }, []);
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
 
-  const handleMyLocationPress = () => {
-    getCurrentLocation();
+    try {
+      setIsSearching(true);
+      setErrorMsg(null);
+
+      const results = await Location.geocodeAsync(searchQuery);
+      if (results.length > 0) {
+        const searchResults = await Promise.all(
+          results.map(async (result) => {
+            const [address] = await Location.reverseGeocodeAsync({
+              latitude: result.latitude,
+              longitude: result.longitude,
+            });
+            return {
+              latitude: result.latitude,
+              longitude: result.longitude,
+              address: address ? `${address.street}, ${address.city}` : null,
+            };
+          })
+        );
+        setSearchResults(searchResults);
+      } else {
+        setSearchResults([]);
+        setErrorMsg('No locations found');
+      }
+    } catch (error) {
+      setErrorMsg('Error searching for location');
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleResultPress = (result: LocationData) => {
+    setLocation(result);
+    setSearchResults([]);
+    setSearchQuery('');
+    Keyboard.dismiss();
+    mapRef.current?.animateToRegion({
+      latitude: result.latitude,
+      longitude: result.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    });
   };
 
   return (
@@ -263,8 +152,17 @@ export default function LocationTracker() {
       <MapView
         ref={mapRef}
         style={styles.map}
-        provider={Platform.OS === 'ios' ? undefined : PROVIDER_GOOGLE}
-        initialRegion={INITIAL_REGION}
+        provider={PROVIDER_GOOGLE}
+        initialRegion={
+          location
+            ? {
+                latitude: location.latitude,
+                longitude: location.longitude,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+              }
+            : undefined
+        }
         showsUserLocation
         showsMyLocationButton={false}
         showsCompass={true}
@@ -272,191 +170,7 @@ export default function LocationTracker() {
         showsTraffic={false}
         showsBuildings={true}
         showsIndoors={true}
-        mapType={isDark ? "standard" : "standard"}
-        moveOnMarkerPress={false}
-        followsUserLocation={true}
-        loadingEnabled={true}
-        loadingIndicatorColor={isDark ? "#ffffff" : "#666666"}
-        loadingBackgroundColor={isDark ? '#000000' : '#ffffff'}
-        accessibilityLabel="Map showing current location"
-        customMapStyle={isDark ? [
-          {
-            "elementType": "geometry",
-            "stylers": [
-              {
-                "color": "#212121"
-              }
-            ]
-          },
-          {
-            "elementType": "labels.icon",
-            "stylers": [
-              {
-                "visibility": "off"
-              }
-            ]
-          },
-          {
-            "elementType": "labels.text.fill",
-            "stylers": [
-              {
-                "color": "#757575"
-              }
-            ]
-          },
-          {
-            "elementType": "labels.text.stroke",
-            "stylers": [
-              {
-                "color": "#212121"
-              }
-            ]
-          },
-          {
-            "featureType": "administrative",
-            "elementType": "geometry",
-            "stylers": [
-              {
-                "color": "#757575"
-              }
-            ]
-          },
-          {
-            "featureType": "administrative.country",
-            "elementType": "labels.text.fill",
-            "stylers": [
-              {
-                "color": "#9e9e9e"
-              }
-            ]
-          },
-          {
-            "featureType": "administrative.locality",
-            "elementType": "labels.text.fill",
-            "stylers": [
-              {
-                "color": "#bdbdbd"
-              }
-            ]
-          },
-          {
-            "featureType": "poi",
-            "elementType": "labels.text.fill",
-            "stylers": [
-              {
-                "color": "#757575"
-              }
-            ]
-          },
-          {
-            "featureType": "poi.park",
-            "elementType": "geometry",
-            "stylers": [
-              {
-                "color": "#181818"
-              }
-            ]
-          },
-          {
-            "featureType": "poi.park",
-            "elementType": "labels.text.fill",
-            "stylers": [
-              {
-                "color": "#616161"
-              }
-            ]
-          },
-          {
-            "featureType": "poi.park",
-            "elementType": "labels.text.stroke",
-            "stylers": [
-              {
-                "color": "#1b1b1b"
-              }
-            ]
-          },
-          {
-            "featureType": "road",
-            "elementType": "geometry.fill",
-            "stylers": [
-              {
-                "color": "#2c2c2c"
-              }
-            ]
-          },
-          {
-            "featureType": "road",
-            "elementType": "labels.text.fill",
-            "stylers": [
-              {
-                "color": "#8a8a8a"
-              }
-            ]
-          },
-          {
-            "featureType": "road.arterial",
-            "elementType": "geometry",
-            "stylers": [
-              {
-                "color": "#373737"
-              }
-            ]
-          },
-          {
-            "featureType": "road.highway",
-            "elementType": "geometry",
-            "stylers": [
-              {
-                "color": "#3c3c3c"
-              }
-            ]
-          },
-          {
-            "featureType": "road.highway.controlled_access",
-            "elementType": "geometry",
-            "stylers": [
-              {
-                "color": "#4e4e4e"
-              }
-            ]
-          },
-          {
-            "featureType": "road.local",
-            "elementType": "labels.text.fill",
-            "stylers": [
-              {
-                "color": "#616161"
-              }
-            ]
-          },
-          {
-            "featureType": "transit",
-            "elementType": "labels.text.fill",
-            "stylers": [
-              {
-                "color": "#757575"
-              }
-            ]
-          },
-          {
-            "featureType": "water",
-            "elementType": "geometry",
-            "stylers": [
-              {
-                "color": "#000000"
-              }
-            ]
-          },
-          {
-            "featureType": "water",
-            "elementType": "labels.text.fill",
-            "stylers": [
-              {
-                "color": "#3d3d3d"
-              }
-            ]
-          }
-        ] : []}
+        showsPointsOfInterest={true}
       >
         {location && (
           <Marker
@@ -464,59 +178,64 @@ export default function LocationTracker() {
               latitude: location.latitude,
               longitude: location.longitude,
             }}
-            title="My Location"
-            description={location.address || 'You are here'}
-            pinColor={isDark ? "#ffffff" : "#007AFF"}
+            title="Current Location"
+            description={location.address || 'No address available'}
           />
         )}
       </MapView>
-      
+
       <View style={[styles.searchContainer, isDark && styles.darkSearchContainer]}>
         <TextInput
           style={[styles.searchInput, isDark && styles.darkSearchInput]}
-          placeholder="Search for a location..."
+          placeholder="Search location..."
           placeholderTextColor={isDark ? '#999' : '#666'}
           value={searchQuery}
-          onChangeText={(text) => {
-            setSearchQuery(text);
-            if (!text.trim()) {
-              setShowResults(false);
-              setSearchResults([]);
-            }
-          }}
-          onSubmitEditing={searchLocation}
+          onChangeText={setSearchQuery}
+          onSubmitEditing={handleSearch}
           returnKeyType="search"
-          accessibilityLabel="Search input"
-          accessibilityHint="Enter a location to search"
         />
-        {isSearching ? (
-          <ActivityIndicator style={styles.searchIcon} color={isDark ? "#ffffff" : "#007AFF"} />
-        ) : (
-          <TouchableOpacity 
-            onPress={searchLocation} 
-            style={[styles.searchIcon, isDark && styles.darkSearchIcon]}
-            accessibilityLabel="Search button"
-            accessibilityHint="Double tap to search for the entered location"
-          >
-            <Ionicons name="search" size={24} color={isDark ? '#fff' : '#000'} />
-          </TouchableOpacity>
+        {isSearching && (
+          <ActivityIndicator
+            style={styles.searchIndicator}
+            color={isDark ? '#fff' : '#000'}
+          />
         )}
       </View>
 
-      {showResults && searchResults.length > 0 && (
-        <View 
-          style={[styles.searchResultsContainer, isDark && styles.darkSearchResultsContainer]}
-          accessibilityLabel={`${searchResults.length} search results`}
-        >
-          <FlatList
-            data={searchResults}
-            renderItem={renderSearchResult}
-            keyExtractor={(_, index) => index.toString()}
-            style={styles.searchResultsList}
-            keyboardShouldPersistTaps="handled"
-          />
+      {searchResults.length > 0 && (
+        <View style={[styles.searchResults, isDark && styles.darkSearchResults]}>
+          {searchResults.map((result, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.resultItem,
+                isDark && styles.darkResultItem,
+                index === searchResults.length - 1 && styles.lastResultItem,
+              ]}
+              onPress={() => handleResultPress(result)}
+            >
+              <Text
+                style={[styles.resultText, isDark && styles.darkResultText]}
+                numberOfLines={2}
+                ellipsizeMode="tail"
+              >
+                {result.address || `Lat: ${result.latitude.toFixed(6)}, Long: ${result.longitude.toFixed(6)}`}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
       )}
+
+      <TouchableOpacity
+        style={[styles.myLocationButton, isDark && styles.darkMyLocationButton]}
+        onPress={handleMyLocationPress}
+        accessibilityLabel="My Location button"
+        accessibilityHint="Double tap to get your current location"
+      >
+        <Text style={[styles.myLocationText, isDark && styles.darkMyLocationText]}>
+          My Location
+        </Text>
+      </TouchableOpacity>
 
       <View style={[styles.infoContainer, isDark && styles.darkInfoContainer]}>
         <Text 
@@ -558,21 +277,9 @@ export default function LocationTracker() {
         )}
       </View>
 
-      <TouchableOpacity
-        style={[styles.myLocationButton, isDark && styles.darkMyLocationButton]}
-        onPress={handleMyLocationPress}
-        testID="my-location-button"
-        accessibilityLabel="My location button"
-        accessibilityHint="Double tap to center map on your current location"
-      >
-        <Text style={[styles.myLocationButtonText, isDark && styles.darkMyLocationButtonText]}>
-          My Location
-        </Text>
-      </TouchableOpacity>
-
       {isLoading && (
         <View style={[styles.loadingOverlay, isDark && styles.darkLoadingOverlay]}>
-          <ActivityIndicator size="large" color={isDark ? "#ffffff" : "#007AFF"} />
+          <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
           <Text style={[styles.loadingText, isDark && styles.darkLoadingText]}>
             Getting your location...
           </Text>
@@ -585,67 +292,26 @@ export default function LocationTracker() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#fff',
   },
   darkContainer: {
-    backgroundColor: '#000000',
+    backgroundColor: '#000',
   },
   map: {
-    ...StyleSheet.absoluteFillObject,
+    width: width,
+    height: height,
   },
   searchContainer: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 20,
+    top: Platform.OS === 'ios' ? 50 : 40,
     left: 20,
     right: 20,
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 16,
-    padding: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-    zIndex: 2,
-  },
-  darkSearchContainer: {
-    backgroundColor: 'rgba(28, 28, 30, 0.95)',
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  searchInput: {
-    flex: 1,
-    height: 44,
-    fontSize: 16,
-    color: '#000',
-    paddingHorizontal: 12,
-    fontWeight: '500',
-  },
-  darkSearchInput: {
-    color: '#fff',
-  },
-  searchIcon: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 12,
-  },
-  darkSearchIcon: {
-    backgroundColor: '#2c2c2e',
-  },
-  searchResultsContainer: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 110 : 70,
-    left: 20,
-    right: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.98)',
-    borderRadius: 16,
-    maxHeight: 300,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -656,32 +322,91 @@ const styles = StyleSheet.create({
     elevation: 5,
     zIndex: 1,
   },
-  darkSearchResultsContainer: {
-    backgroundColor: 'rgba(28, 28, 30, 0.98)',
+  darkSearchContainer: {
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  searchResultsList: {
-    borderRadius: 16,
+  searchInput: {
+    flex: 1,
+    height: 40,
+    fontSize: 16,
+    color: '#000',
+    paddingHorizontal: 8,
   },
-  searchResultItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  darkSearchInput: {
+    color: '#fff',
+  },
+  searchIndicator: {
+    marginLeft: 8,
+  },
+  searchResults: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 110 : 100,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 12,
+    maxHeight: 200,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    zIndex: 1,
+  },
+  darkSearchResults: {
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  resultItem: {
     padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
-  darkSearchResultItem: {
-    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+  darkResultItem: {
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
-  searchResultIcon: {
-    marginRight: 12,
+  lastResultItem: {
+    borderBottomWidth: 0,
   },
-  searchResultText: {
-    flex: 1,
+  resultText: {
     fontSize: 14,
     color: '#000',
   },
-  darkSearchResultText: {
+  darkResultText: {
+    color: '#fff',
+  },
+  myLocationButton: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 100 : 160,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    zIndex: 1,
+  },
+  darkMyLocationButton: {
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  myLocationText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000',
+  },
+  darkMyLocationText: {
     color: '#fff',
   },
   infoContainer: {
@@ -704,7 +429,7 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   darkInfoContainer: {
-    backgroundColor: 'rgba(28, 28, 30, 0.95)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   infoText: {
@@ -760,51 +485,22 @@ const styles = StyleSheet.create({
   darkRetryButtonText: {
     color: '#fff',
   },
-  myLocationButton: {
-    position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 100 : 180,
-    alignSelf: 'center',
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 25,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  darkMyLocationButton: {
-    backgroundColor: '#ffffff',
-  },
-  myLocationButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  darkMyLocationButtonText: {
-    color: '#000000',
-  },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 1000,
+    zIndex: 2,
   },
   darkLoadingOverlay: {
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
   loadingText: {
-    color: '#fff',
-    marginTop: 10,
+    marginTop: 12,
     fontSize: 16,
-    fontWeight: '500',
+    color: '#000',
   },
   darkLoadingText: {
-    color: '#ffffff',
+    color: '#fff',
   },
 }); 

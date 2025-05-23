@@ -13,23 +13,27 @@ export default function App() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <Stack.Navigator
+        screenOptions={{
+          headerStyle: {
+            backgroundColor: isDark ? '#000' : '#fff',
+          },
+          headerTintColor: isDark ? '#fff' : '#000',
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
+        }}
+      >
         <Stack.Screen 
           name="LocationTracker" 
           component={LocationTracker}
           options={{
-            title: 'Whine Febre Location Tracker',
-            headerStyle: {
-              backgroundColor: isDark ? '#000000' : '#007AFF',
-            },
-            headerTintColor: isDark ? '#ffffff' : '#ffffff',
-            headerTitleStyle: {
-              fontWeight: 'bold',
-            },
+            title: 'Location Tracker',
+            headerShown: false
           }}
         />
       </Stack.Navigator>
-      <StatusBar style={isDark ? "light" : "dark"} />
     </NavigationContainer>
   );
 }
