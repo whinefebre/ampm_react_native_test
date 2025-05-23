@@ -1,32 +1,31 @@
-import React from 'react';
+import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { HomeScreen } from './src/screens/HomeScreen';
-import { RootStackParamList } from './src/types';
-import { useColorScheme } from 'react-native';
-import { lightTheme, darkTheme } from './src/theme/theme';
+import LocationTracker from './src/screens/LocationTracker';
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const Stack = createNativeStackNavigator();
 
 export default function App() {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
-
   return (
-    <NavigationContainer theme={theme}>
+    <NavigationContainer>
       <Stack.Navigator>
         <Stack.Screen 
-          name="Home" 
-          component={HomeScreen}
+          name="LocationTracker" 
+          component={LocationTracker}
           options={{
-            title: 'Location Tracker',
+            title: 'Whine Febre Location Tracker',
             headerStyle: {
-              backgroundColor: theme.colors.card,
+              backgroundColor: '#007AFF',
             },
-            headerTintColor: theme.colors.text,
+            headerTintColor: '#fff',
+            headerTitleStyle: {
+              fontWeight: 'bold',
+            },
           }}
         />
       </Stack.Navigator>
+      <StatusBar style="auto" />
     </NavigationContainer>
   );
 }
+

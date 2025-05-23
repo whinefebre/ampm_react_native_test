@@ -1,48 +1,29 @@
 {
   "expo": {
-    "name": "Location Tracker",
-    "slug": "location-tracker",
+    "name": "ampm_react_native_test",
+    "slug": "ampm_react_native_test",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.locationtracker",
-      "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "This app needs access to your location to show it on the map.",
-        "NSLocationAlwaysUsageDescription": "This app needs access to your location to show it on the map."
-      }
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.yourcompany.locationtracker",
-      "permissions": [
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
-      ]
+      "edgeToEdgeEnabled": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    },
-    "plugins": [
-      [
-        "expo-location",
-        {
-          "locationAlwaysAndWhenInUsePermission": "Allow Location Tracker to use your location."
-        }
-      ]
-    ]
+    }
   }
 }
