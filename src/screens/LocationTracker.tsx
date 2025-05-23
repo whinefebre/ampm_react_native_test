@@ -279,6 +279,184 @@ export default function LocationTracker() {
         loadingIndicatorColor={isDark ? "#ffffff" : "#666666"}
         loadingBackgroundColor={isDark ? '#000000' : '#ffffff'}
         accessibilityLabel="Map showing current location"
+        customMapStyle={isDark ? [
+          {
+            "elementType": "geometry",
+            "stylers": [
+              {
+                "color": "#212121"
+              }
+            ]
+          },
+          {
+            "elementType": "labels.icon",
+            "stylers": [
+              {
+                "visibility": "off"
+              }
+            ]
+          },
+          {
+            "elementType": "labels.text.fill",
+            "stylers": [
+              {
+                "color": "#757575"
+              }
+            ]
+          },
+          {
+            "elementType": "labels.text.stroke",
+            "stylers": [
+              {
+                "color": "#212121"
+              }
+            ]
+          },
+          {
+            "featureType": "administrative",
+            "elementType": "geometry",
+            "stylers": [
+              {
+                "color": "#757575"
+              }
+            ]
+          },
+          {
+            "featureType": "administrative.country",
+            "elementType": "labels.text.fill",
+            "stylers": [
+              {
+                "color": "#9e9e9e"
+              }
+            ]
+          },
+          {
+            "featureType": "administrative.locality",
+            "elementType": "labels.text.fill",
+            "stylers": [
+              {
+                "color": "#bdbdbd"
+              }
+            ]
+          },
+          {
+            "featureType": "poi",
+            "elementType": "labels.text.fill",
+            "stylers": [
+              {
+                "color": "#757575"
+              }
+            ]
+          },
+          {
+            "featureType": "poi.park",
+            "elementType": "geometry",
+            "stylers": [
+              {
+                "color": "#181818"
+              }
+            ]
+          },
+          {
+            "featureType": "poi.park",
+            "elementType": "labels.text.fill",
+            "stylers": [
+              {
+                "color": "#616161"
+              }
+            ]
+          },
+          {
+            "featureType": "poi.park",
+            "elementType": "labels.text.stroke",
+            "stylers": [
+              {
+                "color": "#1b1b1b"
+              }
+            ]
+          },
+          {
+            "featureType": "road",
+            "elementType": "geometry.fill",
+            "stylers": [
+              {
+                "color": "#2c2c2c"
+              }
+            ]
+          },
+          {
+            "featureType": "road",
+            "elementType": "labels.text.fill",
+            "stylers": [
+              {
+                "color": "#8a8a8a"
+              }
+            ]
+          },
+          {
+            "featureType": "road.arterial",
+            "elementType": "geometry",
+            "stylers": [
+              {
+                "color": "#373737"
+              }
+            ]
+          },
+          {
+            "featureType": "road.highway",
+            "elementType": "geometry",
+            "stylers": [
+              {
+                "color": "#3c3c3c"
+              }
+            ]
+          },
+          {
+            "featureType": "road.highway.controlled_access",
+            "elementType": "geometry",
+            "stylers": [
+              {
+                "color": "#4e4e4e"
+              }
+            ]
+          },
+          {
+            "featureType": "road.local",
+            "elementType": "labels.text.fill",
+            "stylers": [
+              {
+                "color": "#616161"
+              }
+            ]
+          },
+          {
+            "featureType": "transit",
+            "elementType": "labels.text.fill",
+            "stylers": [
+              {
+                "color": "#757575"
+              }
+            ]
+          },
+          {
+            "featureType": "water",
+            "elementType": "geometry",
+            "stylers": [
+              {
+                "color": "#000000"
+              }
+            ]
+          },
+          {
+            "featureType": "water",
+            "elementType": "labels.text.fill",
+            "stylers": [
+              {
+                "color": "#3d3d3d"
+              }
+            ]
+          }
+        ] : []}
       >
         {location && (
           <Marker
@@ -288,7 +466,7 @@ export default function LocationTracker() {
             }}
             title="My Location"
             description={location.address || 'You are here'}
-            pinColor="#007AFF"
+            pinColor={isDark ? "#ffffff" : "#007AFF"}
           />
         )}
       </MapView>
@@ -341,14 +519,33 @@ export default function LocationTracker() {
       )}
 
       <View style={[styles.infoContainer, isDark && styles.darkInfoContainer]}>
-        <Text style={[styles.coordinatesText, isDark && styles.darkText]}>
+        <Text 
+          style={[styles.infoText, isDark && styles.darkInfoText]}
+          numberOfLines={2}
+          ellipsizeMode="tail"
+        >
           {location
             ? location.address || `Latitude: ${location.latitude.toFixed(6)}\nLongitude: ${location.longitude.toFixed(6)}`
-            : 'Location not available'}
+            : 'Getting your location...'}
         </Text>
+        {location && (
+          <Text 
+            style={[styles.coordinatesText, isDark && styles.darkCoordinatesText]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            Lat: {location.latitude.toFixed(6)}, Long: {location.longitude.toFixed(6)}
+          </Text>
+        )}
         {errorMsg && (
           <View style={styles.errorContainer}>
-            <Text style={[styles.errorText, isDark && styles.darkErrorText]}>{errorMsg}</Text>
+            <Text 
+              style={[styles.errorText, isDark && styles.darkErrorText]}
+              numberOfLines={2}
+              ellipsizeMode="tail"
+            >
+              {errorMsg}
+            </Text>
             <TouchableOpacity
               style={[styles.retryButton, isDark && styles.darkRetryButton]}
               onPress={handleMyLocationPress}
@@ -368,7 +565,9 @@ export default function LocationTracker() {
         accessibilityLabel="My location button"
         accessibilityHint="Double tap to center map on your current location"
       >
-        <Ionicons name="locate" size={24} color={isDark ? "#000000" : "white"} />
+        <Text style={[styles.myLocationButtonText, isDark && styles.darkMyLocationButtonText]}>
+          My Location
+        </Text>
       </TouchableOpacity>
 
       {isLoading && (
@@ -487,7 +686,7 @@ const styles = StyleSheet.create({
   },
   infoContainer: {
     position: 'absolute',
-    bottom: 20,
+    bottom: Platform.OS === 'ios' ? 20 : 80,
     left: 20,
     right: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -502,18 +701,32 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
     zIndex: 0,
+    maxWidth: '100%',
   },
   darkInfoContainer: {
     backgroundColor: 'rgba(28, 28, 30, 0.95)',
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  coordinatesText: {
+  infoText: {
     fontSize: 14,
     color: '#000',
     textAlign: 'center',
+    flexWrap: 'wrap',
+    maxWidth: '100%',
   },
-  darkText: {
+  darkInfoText: {
     color: '#fff',
+  },
+  coordinatesText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    textAlign: 'center',
+    flexWrap: 'wrap',
+    maxWidth: '100%',
+  },
+  darkCoordinatesText: {
+    color: '#999',
   },
   errorContainer: {
     marginTop: 8,
@@ -524,6 +737,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 8,
     textAlign: 'center',
+    flexWrap: 'wrap',
+    maxWidth: '100%',
   },
   darkErrorText: {
     color: '#ff453a',
@@ -547,14 +762,12 @@ const styles = StyleSheet.create({
   },
   myLocationButton: {
     position: 'absolute',
-    bottom: 100,
-    right: 20,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    bottom: Platform.OS === 'ios' ? 100 : 180,
+    alignSelf: 'center',
     backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 25,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -566,6 +779,14 @@ const styles = StyleSheet.create({
   },
   darkMyLocationButton: {
     backgroundColor: '#ffffff',
+  },
+  myLocationButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  darkMyLocationButtonText: {
+    color: '#000000',
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
